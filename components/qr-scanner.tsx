@@ -9,19 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Camera, CheckCircle } from 'lucide-react';
 
-interface RoomData {
-  roomId: string;
-  roomNumber: string;
-  roomName: string;
+export interface TeacherData {
+  id: string;
+  name: string;
+  department: string;
 }
 
 interface ScanResult {
-  room: RoomData;
+  teacher: TeacherData;
   scannedAt: Date;
 }
 
 interface QRScannerProps {
-  onScan: (room: RoomData) => void;
+  onScan: (teacher: TeacherData) => void;
   isActive: boolean;
 }
 
@@ -33,12 +33,12 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Mock QR code database - in production this would be from an API
-  const QR_CODES: { [key: string]: RoomData } = {
-    'room-101': { roomId: 'room-101', roomNumber: '101', roomName: 'Advanced Chemistry Lab' },
-    'room-102': { roomId: 'room-102', roomNumber: '102', roomName: 'Physics Lab' },
-    'room-103': { roomId: 'room-103', roomNumber: '103', roomName: 'Biology Lab' },
-    'room-104': { roomId: 'room-104', roomNumber: '104', roomName: 'Materials Lab' },
+  // Mock Teacher Database
+  const TEACHER_DB: { [key: string]: TeacherData } = {
+    'teacher-1': { id: 'T-1001', name: 'Dr. Smith', department: 'Chemistry' },
+    'teacher-2': { id: 'T-1002', name: 'Prof. Johnson', department: 'Physics' },
+    'teacher-3': { id: 'T-1003', name: 'Dr. Williams', department: 'Biology' },
+    'teacher-4': { id: 'T-1004', name: 'Prof. Davis', department: 'Engineering' },
   };
 
   const startCamera = async () => {
@@ -53,7 +53,7 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
       }
     } catch (err) {
       setError('Cannot access camera. Try using manual code entry instead.');
-      console.error('[v0] Camera error:', err);
+      console.error('[App] Camera error:', err);
     }
   };
 
@@ -66,15 +66,16 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
   };
 
   const processQRCode = (qrValue: string) => {
-    const room = QR_CODES[qrValue];
-    if (room) {
-      onScan(room);
-      setSuccess(`Scanned: ${room.roomName}`);
+    const teacher = TEACHER_DB[qrValue];
+    if (teacher) {
+      onScan(teacher);
+      setSuccess(`Scanned: ${teacher.name}`);
       setTimeout(() => setSuccess(''), 3000);
       setError('');
       setManualInput('');
+      stopCamera(); // Stop camera on success
     } else {
-      setError(`Invalid QR code: ${qrValue}`);
+      setError(`Invalid Teacher ID: ${qrValue}`);
     }
   };
 
@@ -101,10 +102,9 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
 
-      // Simulate QR detection - in production use jsQR or similar library
-      // For demo: detect text patterns in the canvas
+      // Simulate QR detection
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // This is a simplified mock - real implementation would use QR decoding library
+      // In a real app, you would pass imageData to a library like jsQR
     }, 100);
 
     return () => clearInterval(interval);
@@ -116,9 +116,9 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Camera className="h-5 w-5" />
-            QR Code Scanner
+            Teacher ID Scanner
           </CardTitle>
-          <CardDescription>Scan the QR code on the lab room door</CardDescription>
+          <CardDescription>Scan your Teacher ID to log presence</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -135,7 +135,12 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
             </div>
           )}
 
-          {cameraActive ? (
+          {!isActive ? (
+            <div className="text-center p-6 bg-muted rounded-md border border-dashed">
+              <p className="text-muted-foreground">Scan complete</p>
+              <Button variant="link" onClick={() => window.location.reload()}>Scan again</Button>
+            </div>
+          ) : cameraActive ? (
             <div className="space-y-4">
               <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
                 <video
@@ -158,31 +163,35 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
 
           <canvas ref={canvasRef} className="hidden" />
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-card px-2 text-muted-foreground">or enter code manually</span>
-            </div>
-          </div>
+          {isActive && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-card px-2 text-muted-foreground">or enter ID manually</span>
+                </div>
+              </div>
 
-          <form onSubmit={handleManualInput} className="space-y-2">
-            <Label htmlFor="code">Room Code</Label>
-            <div className="flex gap-2">
-              <Input
-                id="code"
-                placeholder="e.g., room-101"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                disabled={cameraActive}
-              />
-              <Button type="submit" disabled={cameraActive || !manualInput.trim()}>
-                Submit
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Available codes: room-101, room-102, room-103, room-104</p>
-          </form>
+              <form onSubmit={handleManualInput} className="space-y-2">
+                <Label htmlFor="code">Teacher ID Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="code"
+                    placeholder="e.g., teacher-1"
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value)}
+                    disabled={cameraActive}
+                  />
+                  <Button type="submit" disabled={cameraActive || !manualInput.trim()}>
+                    Submit
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Available IDs: teacher-1, teacher-2, teacher-3</p>
+              </form>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

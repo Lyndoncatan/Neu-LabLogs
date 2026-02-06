@@ -7,17 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import { TeacherData } from './qr-scanner';
 
-interface RoomData {
-  roomId: string;
+export interface UsageEntry {
+  teacherId: string;
+  teacherName: string;
+  buildingNumber: string;
   roomNumber: string;
-  roomName: string;
-}
-
-interface UsageEntry {
-  roomId: string;
-  roomName: string;
   startTime: Date;
   endTime?: Date;
   numStudents: number;
@@ -26,26 +23,28 @@ interface UsageEntry {
 }
 
 interface RoomUsageFormProps {
-  room: RoomData | null;
+  teacher: TeacherData | null;
   onSubmit: (entry: UsageEntry) => void;
 }
 
-export function RoomUsageForm({ room, onSubmit }: RoomUsageFormProps) {
+export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
+  const [buildingNumber, setBuildingNumber] = useState('');
+  const [roomNumber, setRoomNumber] = useState('');
   const [numStudents, setNumStudents] = useState('1');
   const [purpose, setPurpose] = useState('');
   const [equipment, setEquipment] = useState('');
   const [startTime, setStartTime] = useState(new Date().toISOString().slice(0, 16));
   const [submitted, setSubmitted] = useState(false);
 
-  if (!room) {
+  if (!teacher) {
     return (
       <Card className="border-border border-dashed opacity-50">
         <CardHeader>
-          <CardTitle>Room Usage Log</CardTitle>
-          <CardDescription>Scan a room QR code to begin</CardDescription>
+          <CardTitle>Attendance Log</CardTitle>
+          <CardDescription>Scan your Teacher ID to begin</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-sm">Room details will appear here after scanning</p>
+          <p className="text-muted-foreground text-sm">Teacher details will appear here after scanning</p>
         </CardContent>
       </Card>
     );
@@ -55,8 +54,10 @@ export function RoomUsageForm({ room, onSubmit }: RoomUsageFormProps) {
     e.preventDefault();
 
     const entry: UsageEntry = {
-      roomId: room.roomId,
-      roomName: room.roomName,
+      teacherId: teacher.id,
+      teacherName: teacher.name,
+      buildingNumber: buildingNumber,
+      roomNumber: roomNumber,
       startTime: new Date(startTime),
       numStudents: parseInt(numStudents) || 1,
       purpose: purpose || 'General use',
@@ -66,6 +67,10 @@ export function RoomUsageForm({ room, onSubmit }: RoomUsageFormProps) {
     onSubmit(entry);
     setSubmitted(true);
     setTimeout(() => {
+      // Reset form but keep teacher? Or reset teacher too?
+      // Usually reset fields for next entry
+      setBuildingNumber('');
+      setRoomNumber('');
       setNumStudents('1');
       setPurpose('');
       setEquipment('');
@@ -78,85 +83,93 @@ export function RoomUsageForm({ room, onSubmit }: RoomUsageFormProps) {
     <Card className="border-border">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Room Usage Log</span>
-          <span className="text-lg font-normal text-primary">Room {room.roomNumber}</span>
+          <span>Attendance Log</span>
+          <span className="text-lg font-normal text-primary">{teacher.name}</span>
         </CardTitle>
-        <CardDescription>{room.roomName}</CardDescription>
+        <CardDescription>{teacher.department} - {teacher.id}</CardDescription>
       </CardHeader>
       <CardContent>
-        {submitted && (
+        {submitted ? (
           <div className="mb-4 flex gap-2 rounded-md bg-green-500/10 p-3 text-sm text-green-600">
             <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
             <span>Usage logged successfully!</span>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="building">Building Number</Label>
+                <Input
+                  id="building"
+                  placeholder="e.g., A, B, Science"
+                  value={buildingNumber}
+                  onChange={(e) => setBuildingNumber(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="room">Room Number</Label>
+                <Input
+                  id="room"
+                  placeholder="e.g., 101, 204"
+                  value={roomNumber}
+                  onChange={(e) => setRoomNumber(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start-time">Start Time</Label>
+                <Input
+                  id="start-time"
+                  type="datetime-local"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="students">Number of Students</Label>
+                <Input
+                  id="students"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={numStudents}
+                  onChange={(e) => setNumStudents(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="purpose">Purpose of Use</Label>
+              <Input
+                id="purpose"
+                placeholder="e.g., Experimental analysis, Lab practical"
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="equipment">Equipment Used (comma-separated)</Label>
+              <Input
+                id="equipment"
+                placeholder="e.g., Microscope, Centrifuge, Analyzer"
+                value={equipment}
+                onChange={(e) => setEquipment(e.target.value)}
+              />
+            </div>
+
+            <Button type="submit" className="w-full">
+              Log Entry
+            </Button>
+          </form>
         )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-time">Start Time</Label>
-              <Input
-                id="start-time"
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="students">Number of Students</Label>
-              <Input
-                id="students"
-                type="number"
-                min="1"
-                max="100"
-                value={numStudents}
-                onChange={(e) => setNumStudents(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="purpose">Purpose of Use</Label>
-            <Input
-              id="purpose"
-              placeholder="e.g., Experimental analysis, Lab practical"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="equipment">Equipment Used (comma-separated)</Label>
-            <Input
-              id="equipment"
-              placeholder="e.g., Microscope, Centrifuge, Analyzer"
-              value={equipment}
-              onChange={(e) => setEquipment(e.target.value)}
-            />
-          </div>
-
-          <Button type="submit" className="w-full">
-            Log Entry
-          </Button>
-        </form>
-
-        <div className="mt-4 p-3 bg-muted rounded-md text-xs space-y-2">
-          <p className="font-semibold text-foreground">Entry Summary:</p>
-          <div className="text-muted-foreground space-y-1">
-            <p>
-              <span className="font-medium">Students:</span> {numStudents}
-            </p>
-            <p>
-              <span className="font-medium">Purpose:</span> {purpose || 'Not specified'}
-            </p>
-            <p>
-              <span className="font-medium">Equipment:</span> {equipment || 'None'}
-            </p>
-          </div>
-        </div>
       </CardContent>
     </Card>
   );

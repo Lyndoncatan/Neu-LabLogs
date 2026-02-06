@@ -4,26 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { QRScanner } from '@/components/qr-scanner';
-import { RoomUsageForm } from '@/components/room-usage-form';
+import { QRScanner, TeacherData } from '@/components/qr-scanner';
+import { RoomUsageForm, UsageEntry } from '@/components/room-usage-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-interface RoomData {
-  roomId: string;
-  roomNumber: string;
-  roomName: string;
-}
-
-interface UsageEntry {
-  roomId: string;
-  roomName: string;
-  startTime: Date;
-  endTime?: Date;
-  numStudents: number;
-  purpose: string;
-  equipment: string[];
-}
 
 interface Room {
   id: string;
@@ -31,13 +15,13 @@ interface Room {
   name: string;
   capacity: number;
   equipment: string[];
-  qrCode: string;
+  qrCode: string; // Kept for admin reference if needed
 }
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [scannedRoom, setScannedRoom] = useState<RoomData | null>(null);
+  const [scannedTeacher, setScannedTeacher] = useState<TeacherData | null>(null);
   const [entries, setEntries] = useState<UsageEntry[]>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('usageEntries');
@@ -87,25 +71,17 @@ export default function DashboardPage() {
   if (user.role === 'admin') {
     const totalEntries = entries.length;
     const totalStudents = entries.reduce((sum, e) => sum + e.numStudents, 0);
-    const activeRooms = new Set(entries.map((e) => e.roomId)).size;
+    // Active teachers = unique teacherIds in entries from 'today' (simplified for now to all entries)
+    const activeTeachers = new Set(entries.map((e) => e.teacherId)).size;
     const avgStudentsPerEntry = totalEntries > 0 ? (totalStudents / totalEntries).toFixed(1) : '0';
 
-    const roomUsageData = rooms.map((room) => {
-      const roomEntries = entries.filter((e) => e.roomId === room.id);
-      return {
-        name: `Room ${room.number}`,
-        entries: roomEntries.length,
-        students: roomEntries.reduce((sum, e) => sum + e.numStudents, 0),
-      };
-    });
-
-    const purposeData = Array.from(
+    const buildingUsageData = Array.from(
       entries.reduce((acc, e) => {
-        const purpose = e.purpose || 'Unspecified';
-        acc.set(purpose, (acc.get(purpose) || 0) + 1);
+        const building = e.buildingNumber || 'Unknown';
+        acc.set(building, (acc.get(building) || 0) + 1);
         return acc;
       }, new Map<string, number>())
-    ).map(([purpose, count]) => ({ purpose, count }));
+    ).map(([name, count]) => ({ name, count }));
 
     return (
       <DashboardLayout role="admin">
@@ -113,11 +89,11 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-border">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Usage Entries</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Entries</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{totalEntries}</div>
-                <p className="text-xs text-muted-foreground mt-2">room access logs</p>
+                <p className="text-xs text-muted-foreground mt-2">logged sessions</p>
               </CardContent>
             </Card>
 
@@ -127,42 +103,72 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{totalStudents}</div>
-                <p className="text-xs text-muted-foreground mt-2">student participations</p>
+                <p className="text-xs text-muted-foreground mt-2">total attendance</p>
               </CardContent>
             </Card>
 
             <Card className="border-border">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Rooms</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Active Teachers</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-primary">{activeRooms}</div>
-                <p className="text-xs text-muted-foreground mt-2">of {rooms.length} rooms</p>
+                <div className="text-3xl font-bold text-primary">{activeTeachers}</div>
+                <p className="text-xs text-muted-foreground mt-2">using labs</p>
               </CardContent>
             </Card>
 
             <Card className="border-border">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Students/Entry</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Class Size</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{avgStudentsPerEntry}</div>
-                <p className="text-xs text-muted-foreground mt-2">per session</p>
+                <p className="text-xs text-muted-foreground mt-2">students per session</p>
               </CardContent>
             </Card>
           </div>
 
-          {entries.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {roomUsageData.some((r) => r.entries > 0) && (
-                <Card className="border-border">
+          {entries.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <Card className="border-border h-full">
                   <CardHeader>
-                    <CardTitle>Room Usage</CardTitle>
-                    <CardDescription>Number of entries and students per room</CardDescription>
+                    <CardTitle>Usage Log</CardTitle>
+                    <CardDescription>Recent laboratory activity</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {entries.slice().reverse().map((entry, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                            <p className="font-semibold">{entry.teacherName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Bldg {entry.buildingNumber}, Room {entry.roomNumber}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">
+                              {new Date(entry.startTime).toLocaleTimeString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(entry.startTime).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div>
+                <Card className="border-border h-full">
+                  <CardHeader>
+                    <CardTitle>Building Usage</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={roomUsageData}>
+                      <BarChart data={buildingUsageData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                         <XAxis dataKey="name" stroke="var(--color-muted-foreground)" />
                         <YAxis stroke="var(--color-muted-foreground)" />
@@ -173,52 +179,19 @@ export default function DashboardPage() {
                             borderRadius: '0.5rem',
                           }}
                         />
-                        <Legend />
-                        <Bar dataKey="entries" fill="var(--color-primary)" />
-                        <Bar dataKey="students" fill="var(--color-accent)" />
+                        <Bar dataKey="count" fill="var(--color-primary)" />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
-              )}
-
-              {purposeData.length > 0 && (
-                <Card className="border-border">
-                  <CardHeader>
-                    <CardTitle>Usage by Purpose</CardTitle>
-                    <CardDescription>Distribution of room use purposes</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {purposeData.map((item) => (
-                        <div key={item.purpose} className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">{item.purpose}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-muted rounded-full h-2">
-                              <div
-                                className="bg-primary h-2 rounded-full"
-                                style={{
-                                  width: `${(item.count / totalEntries) * 100}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-sm font-semibold text-foreground w-8">{item.count}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              </div>
             </div>
-          )}
-
-          {entries.length === 0 && (
+          ) : (
             <Card className="border-dashed">
               <CardContent className="flex items-center justify-center py-12">
                 <div className="text-center">
                   <p className="text-muted-foreground mb-2">No usage data yet</p>
-                  <p className="text-sm text-muted-foreground">Usage entries from professors will appear here</p>
+                  <p className="text-sm text-muted-foreground">Teacher logs will appear here</p>
                 </div>
               </CardContent>
             </Card>
@@ -233,13 +206,13 @@ export default function DashboardPage() {
     return null;
   }
 
-  const handleScan = (room: RoomData) => {
-    setScannedRoom(room);
+  const handleScan = (teacher: TeacherData) => {
+    setScannedTeacher(teacher);
   };
 
   const handleSubmit = (entry: UsageEntry) => {
     setEntries([...entries, { ...entry, startTime: new Date(entry.startTime) }]);
-    setScannedRoom(null);
+    setScannedTeacher(null); // Reset scanner loop
   };
 
   const recentEntries = entries.slice(-3).reverse();
@@ -249,8 +222,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scanner and Form */}
         <div className="lg:col-span-2 space-y-6">
-          <QRScanner onScan={handleScan} isActive={!scannedRoom} />
-          <RoomUsageForm room={scannedRoom} onSubmit={handleSubmit} />
+          <QRScanner onScan={handleScan} isActive={!scannedTeacher} />
+          <RoomUsageForm teacher={scannedTeacher} onSubmit={handleSubmit} />
         </div>
 
         {/* Sidebar */}
@@ -264,12 +237,6 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Entries</p>
                 <p className="text-3xl font-bold text-primary">{entries.length}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Rooms Used</p>
-                <p className="text-3xl font-bold text-primary">
-                  {new Set(entries.map((e) => e.roomId)).size}
-                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Students</p>
@@ -291,7 +258,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {recentEntries.map((entry, idx) => (
                     <div key={idx} className="p-2 bg-muted rounded-md text-xs border border-border">
-                      <p className="font-semibold text-foreground">{entry.roomName}</p>
+                      <p className="font-semibold text-foreground">Bldg {entry.buildingNumber} - Room {entry.roomNumber}</p>
                       <p className="text-muted-foreground">
                         {new Date(entry.startTime).toLocaleTimeString()}
                       </p>
