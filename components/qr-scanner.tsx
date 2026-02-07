@@ -1,13 +1,12 @@
 'use client';
 
-import React from "react"
-
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Camera, CheckCircle } from 'lucide-react';
+import jsQR from "jsqr";
 
 export interface TeacherData {
   id: string;
@@ -33,6 +32,7 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
   const [manualInput, setManualInput] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
   // Mock Teacher Database
   const TEACHER_DB: { [key: string]: TeacherData } = {
@@ -44,8 +44,12 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
 
   const startCamera = async () => {
     try {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: facingMode },
       });
       setStream(mediaStream);
       setCameraActive(true);
@@ -75,6 +79,23 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
       setCameraActive(false);
     }
   };
+
+  const toggleCamera = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+    setCameraActive(false);
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  // Restart camera when facingMode changes if it was active
+  useEffect(() => {
+    if (cameraActive && !stream) {
+      startCamera();
+    }
+  }, [facingMode]);
+
 
   useEffect(() => {
     if (cameraActive && stream && videoRef.current) {
@@ -113,7 +134,8 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
       setManualInput('');
       stopCamera();
     } else {
-      setError(`Invalid Format. Expected "Department,Name,ID". Scanned: ${qrValue}`);
+      // Don't show error immediately on every frame for invalid QR, just ignore or log
+      console.log('Invalid QR Format:', qrValue);
     }
   };
 
@@ -124,26 +146,36 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
     }
   };
 
-  // Simulate QR code scanning from video
+  // Real QR code scanning logic
   useEffect(() => {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return;
 
     const interval = setInterval(() => {
-      const canvas = canvasRef.current;
       const video = videoRef.current;
-      if (!canvas || !video) return;
+      const canvas = canvasRef.current;
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!video || !canvas) return;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-      // Simulate QR detection
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // In a real app, you would pass imageData to a library like jsQR
-    }, 100);
+          // @ts-ignore - jsQR might not have types installed
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+
+          if (code) {
+            console.log("QR Code found:", code.data);
+            processQRCode(code.data);
+          }
+        }
+      }
+    }, 500); // Scan every 500ms to save performance
 
     return () => clearInterval(interval);
   }, [cameraActive]);
@@ -185,13 +217,18 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
                   ref={videoRef}
                   autoPlay
                   playsInline
-                  className="w-full h-full"
+                  className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 border-4 border-primary opacity-30 m-12" />
+                <div className="absolute inset-0 border-4 border-primary opacity-30 m-12 pointer-events-none" />
               </div>
-              <Button onClick={stopCamera} variant="outline" className="w-full bg-transparent">
-                Stop Camera
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={stopCamera} variant="outline" className="flex-1 bg-transparent border-destructive text-destructive hover:bg-destructive/10">
+                  Stop Camera
+                </Button>
+                <Button onClick={toggleCamera} variant="outline" className="flex-1">
+                  Flip Camera
+                </Button>
+              </div>
             </div>
           ) : (
             <Button onClick={startCamera} className="w-full">
