@@ -51,8 +51,20 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
         setCameraActive(true);
         setError('');
       }
-    } catch (err) {
-      setError('Cannot access camera. Try using manual code entry instead.');
+    } catch (err: any) {
+      // Detailed error handling
+      let errorMessage = 'Cannot access camera.';
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow access in your browser settings.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Camera is currently in use by another application.';
+      } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+        errorMessage = 'Camera requires HTTPS. Please use the secure Vercel link.';
+      }
+
+      setError(`${errorMessage} (${err.name})`);
       console.error('[App] Camera error:', err);
     }
   };
@@ -66,6 +78,27 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
   };
 
   const processQRCode = (qrValue: string) => {
+    // 1. Try to parse as CSV: "Department,Fullname,Code"
+    const parts = qrValue.split(',');
+
+    if (parts.length === 3) {
+      const [department, name, id] = parts.map(s => s.trim());
+      const teacher: TeacherData = {
+        id,
+        name,
+        department
+      };
+
+      onScan(teacher);
+      setSuccess(`Scanned: ${teacher.name}`);
+      setTimeout(() => setSuccess(''), 3000);
+      setError('');
+      setManualInput('');
+      stopCamera();
+      return;
+    }
+
+    // 2. Fallback: Check Mock DB (for backward compatibility or testing)
     const teacher = TEACHER_DB[qrValue];
     if (teacher) {
       onScan(teacher);
@@ -73,9 +106,9 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
       setTimeout(() => setSuccess(''), 3000);
       setError('');
       setManualInput('');
-      stopCamera(); // Stop camera on success
+      stopCamera();
     } else {
-      setError(`Invalid Teacher ID: ${qrValue}`);
+      setError(`Invalid Format. Expected "Department,Name,ID". Scanned: ${qrValue}`);
     }
   };
 
