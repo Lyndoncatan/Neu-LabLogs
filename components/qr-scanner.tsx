@@ -28,6 +28,7 @@ interface QRScannerProps {
 export function QRScanner({ onScan, isActive }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const [error, setError] = useState('');
@@ -43,14 +44,12 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-        setError('');
-      }
+      setStream(mediaStream);
+      setCameraActive(true);
+      setError('');
     } catch (err: any) {
       // Detailed error handling
       let errorMessage = 'Cannot access camera.';
@@ -70,12 +69,18 @@ export function QRScanner({ onScan, isActive }: QRScannerProps) {
   };
 
   const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((track) => track.stop());
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
       setCameraActive(false);
     }
   };
+
+  useEffect(() => {
+    if (cameraActive && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [cameraActive, stream]);
 
   const processQRCode = (qrValue: string) => {
     // 1. Try to parse as CSV: "Department,Fullname,Code"
