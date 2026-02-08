@@ -1,0 +1,10 @@
+
+.vscode
+.idea
+*.test.js
+*.test.ts
+*.test.tsx
+README.md
+LICENSE
+.ds_store
+Thumbs.db
