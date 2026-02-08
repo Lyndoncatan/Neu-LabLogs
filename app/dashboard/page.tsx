@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth-context';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { QRScanner, TeacherData } from '@/components/qr-scanner';
 import { RoomUsageForm, UsageEntry } from '@/components/room-usage-form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TeacherManagement } from '@/components/teacher-management';
+import { UsageReport } from '@/components/usage-report';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -52,6 +55,29 @@ export default function DashboardPage() {
     }
   }, [user?.role]);
 
+  // Auto-register teacher if they log in
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.role === 'professor') {
+      const storedTeachers = localStorage.getItem('teachers');
+      let teachersList: any[] = storedTeachers ? JSON.parse(storedTeachers) : [];
+
+      const exists = teachersList.some((t: any) => t.email === user.email || t.name === user.name);
+
+      if (!exists) {
+        // Create a basic ID if one doesn't exist, using timestamp or similar for uniqueness
+        const newTeacher = {
+          id: `T-${Math.floor(1000 + Math.random() * 9000)}`,
+          name: user.name,
+          department: 'Unassigned', // Default
+          status: 'active',
+          email: user.email // Store email to match better if needed
+        };
+        teachersList.push(newTeacher);
+        localStorage.setItem('teachers', JSON.stringify(teachersList));
+      }
+    }
+  }, [user]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -69,134 +95,80 @@ export default function DashboardPage() {
 
   // Admin Dashboard
   if (user.role === 'admin') {
-    const totalEntries = entries.length;
-    const totalStudents = entries.reduce((sum, e) => sum + e.numStudents, 0);
-    // Active teachers = unique teacherIds in entries from 'today' (simplified for now to all entries)
-    const activeTeachers = new Set(entries.map((e) => e.teacherId)).size;
-    const avgStudentsPerEntry = totalEntries > 0 ? (totalStudents / totalEntries).toFixed(1) : '0';
-
-    const buildingUsageData = Array.from(
-      entries.reduce((acc, e) => {
-        const building = e.buildingNumber || 'Unknown';
-        acc.set(building, (acc.get(building) || 0) + 1);
-        return acc;
-      }, new Map<string, number>())
-    ).map(([name, count]) => ({ name, count }));
-
     return (
       <DashboardLayout role="admin">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Entries</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{totalEntries}</div>
-                <p className="text-xs text-muted-foreground mt-2">logged sessions</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{totalStudents}</div>
-                <p className="text-xs text-muted-foreground mt-2">total attendance</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Teachers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{activeTeachers}</div>
-                <p className="text-xs text-muted-foreground mt-2">using labs</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Class Size</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{avgStudentsPerEntry}</div>
-                <p className="text-xs text-muted-foreground mt-2">students per session</p>
-              </CardContent>
-            </Card>
+        <Tabs defaultValue="teachers" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight text-black">Admin Dashboard</h2>
+            <TabsList className="bg-zinc-100 p-1">
+              <TabsTrigger
+                value="teachers"
+                className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-500"
+              >
+                Manage Accounts
+              </TabsTrigger>
+              <TabsTrigger
+                value="logs"
+                className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-500"
+              >
+                Attendance Logs
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          {entries.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <Card className="border-border h-full">
-                  <CardHeader>
-                    <CardTitle>Usage Log</CardTitle>
-                    <CardDescription>Recent laboratory activity</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
+          <TabsContent value="teachers">
+            <TeacherManagement />
+          </TabsContent>
+
+          <TabsContent value="logs">
+            <div className="space-y-6">
+              {/* Report Controls */}
+              <UsageReport />
+
+              {/* Live Data Table */}
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="text-black">Recent Activity</CardTitle>
+                  <CardDescription className="text-gray-500">Live view of laboratory usage</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {entries.length > 0 ? (
+                    <div className="space-y-0 text-sm">
+                      <div className="grid grid-cols-5 font-semibold text-gray-500 pb-2 border-b mb-2 px-2">
+                        <div className="col-span-1">Time</div>
+                        <div className="col-span-1">Room</div>
+                        <div className="col-span-1">Teacher</div>
+                        <div className="col-span-1">Students</div>
+                        <div className="col-span-1 text-right">Date</div>
+                      </div>
                       {entries.slice().reverse().map((entry, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <p className="font-semibold">{entry.teacherName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Bldg {entry.buildingNumber}, Room {entry.roomNumber}
-                            </p>
+                        <div key={idx} className="grid grid-cols-5 py-3 hover:bg-muted/50 rounded-md px-2 transition-colors border-b last:border-0 border-dashed text-black">
+                          <div className="col-span-1 font-medium">
+                            {new Date(entry.startTime).toLocaleTimeString()}
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">
-                              {new Date(entry.startTime).toLocaleTimeString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(entry.startTime).toLocaleDateString()}
-                            </p>
+                          <div className="col-span-1">
+                            {entry.buildingNumber}-{entry.roomNumber}
+                          </div>
+                          <div className="col-span-1 font-medium text-black">
+                            {entry.teacherName}
+                          </div>
+                          <div className="col-span-1">
+                            {entry.numStudents}
+                          </div>
+                          <div className="col-span-1 text-gray-500 text-right">
+                            {new Date(entry.startTime).toLocaleDateString()}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div>
-                <Card className="border-border h-full">
-                  <CardHeader>
-                    <CardTitle>Building Usage</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={buildingUsageData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                        <XAxis dataKey="name" stroke="var(--color-muted-foreground)" />
-                        <YAxis stroke="var(--color-muted-foreground)" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'var(--color-card)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '0.5rem',
-                          }}
-                        />
-                        <Bar dataKey="count" fill="var(--color-primary)" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No usage logs found.</p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <p className="text-muted-foreground mb-2">No usage data yet</p>
-                  <p className="text-sm text-muted-foreground">Teacher logs will appear here</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
       </DashboardLayout>
     );
   }

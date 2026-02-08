@@ -24,7 +24,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen" style={{ backgroundColor: '#023E8A' }}>
       {/* Sidebar */}
       <aside
         className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col`}
@@ -91,7 +91,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       <main className="flex-1 overflow-auto">
         <header className="sticky top-0 bg-card border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-foreground">
+            <h2 className="text-2xl font-bold text-card-foreground">
               {role === 'professor' ? 'Room Scanner' : 'Admin Dashboard'}
             </h2>
             <div className="text-sm text-muted-foreground">{new Date().toLocaleDateString()}</div>

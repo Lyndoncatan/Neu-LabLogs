@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 
 interface UsageEntry {
-  roomId: string;
-  roomName: string;
+  teacherId: string;
+  teacherName: string;
+  buildingNumber: string;
+  roomNumber: string;
   startTime: Date;
   endTime?: Date;
   numStudents: number;
@@ -19,9 +21,8 @@ interface UsageEntry {
 }
 
 export default function HistoryPage() {
-  const { user, loading } = useRouter();
   const router = useRouter();
-  const { user: authUser } = useAuth();
+  const { user: authUser, loading } = useAuth();
   const [entries, setEntries] = useState<UsageEntry[]>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('usageEntries');
@@ -74,8 +75,8 @@ export default function HistoryPage() {
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
                 <p className="text-muted-foreground mb-4">No usage entries yet</p>
-                <Button variant="outline">
-                  <a href="/dashboard">Start Scanning</a>
+                <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                  Start Scanning
                 </Button>
               </div>
             </CardContent>
@@ -109,7 +110,7 @@ export default function HistoryPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-primary">
-                    {new Set(entries.map((e) => e.roomId)).size}
+                    {new Set(entries.map((e) => `${e.buildingNumber}-${e.roomNumber}`)).size}
                   </div>
                 </CardContent>
               </Card>
@@ -129,13 +130,16 @@ export default function HistoryPage() {
                     >
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-foreground">{entry.roomName}</h3>
+                          <h3 className="font-semibold text-foreground">
+                            {entry.buildingNumber} Building - Room {entry.roomNumber}
+                          </h3>
                           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                            Room {entry.roomId.split('-')[1]}
+                            {entry.teacherName}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {new Date(entry.startTime).toLocaleString()}
+                          {entry.endTime && ` - ${new Date(entry.endTime).toLocaleTimeString()}`}
                         </p>
                         <div className="flex gap-4 text-xs text-muted-foreground">
                           <span>👥 {entry.numStudents} students</span>

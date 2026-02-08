@@ -14,7 +14,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (preferredRole?: 'admin' | 'professor') => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   error: string | null;
@@ -47,7 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Map Supabase user to App User
         // Defaulting to 'professor' role unless email starts with 'admin'
         // This is a simple heuristic for the demo.
-        const role = currentUser.email.startsWith('admin') ? 'admin' : 'professor';
+        // Check for preferred role from login (for demo purposes)
+        const preferredRole = localStorage.getItem('preferredRole');
+        let role: 'professor' | 'admin' = 'professor';
+
+        if (preferredRole === 'admin') {
+          role = 'admin';
+        } else {
+          role = (currentUser.email.startsWith('admin') || currentUser.email === 'example@neu.edu.ph') ? 'admin' : 'professor';
+        }
+
+        // Clear preferred role after use so it doesn't persist forever if they switch back
+        // localStorage.removeItem('preferredRole'); // Optional: keep it for session persistence
 
         setUser({
           id: currentUser.id,
@@ -67,8 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (preferredRole?: 'admin' | 'professor') => {
     setError(null);
+    if (preferredRole) {
+      localStorage.setItem('preferredRole', preferredRole);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 export function LoginForm() {
   const { loginWithGoogle, user, error: authError } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("teacher");
 
   useEffect(() => {
     if (user) {
@@ -21,23 +24,56 @@ export function LoginForm() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      await loginWithGoogle();
+      await loginWithGoogle(activeTab as 'admin' | 'professor');
     } catch (error) {
       console.error(error);
     } finally {
-      // Don't set loading false immediately to prevent flash while redirecting
-      // But if it fails, we should.
-      setTimeout(() => setLoading(false), 2000);
+      setTimeout(() => setLoading(false), 2000); // Keep loading state briefly to prevent flash
     }
   };
 
   return (
     <Card className="w-full max-w-md border-border">
       <CardHeader>
-        <CardTitle className="text-2xl">Lab Room Tracker</CardTitle>
-        <CardDescription>Sign in to access your dashboard</CardDescription>
+        <CardTitle className="text-2xl text-center">Lab Room Tracker</CardTitle>
+        <CardDescription className="text-center">Sign in to access your portal</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
+        <Tabs defaultValue="teacher" onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4 bg-zinc-100 p-1">
+            <TabsTrigger
+              value="teacher"
+              className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-500"
+            >
+              Teacher Portal
+            </TabsTrigger>
+            <TabsTrigger
+              value="admin"
+              className="data-[state=active]:bg-white data-[state=active]:text-black text-zinc-500"
+            >
+              Admin Portal
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="teacher">
+            <div className="space-y-4">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold text-lg">Teacher Login</h3>
+                <p className="text-sm text-muted-foreground">Access your class logs and scanner.</p>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="admin">
+            <div className="space-y-4">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold text-lg">Admin Login</h3>
+                <p className="text-sm text-muted-foreground">Manage accounts and view reports.</p>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
         {authError && (
           <div className="flex gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -46,10 +82,10 @@ export function LoginForm() {
         )}
 
         <Button
-          variant="outline"
           className="w-full py-6 flex gap-2"
           onClick={handleGoogleLogin}
           disabled={loading}
+          style={{ backgroundColor: activeTab === 'admin' ? '#000000' : '' }} // Darker button for admin feel
         >
           {loading ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -73,7 +109,7 @@ export function LoginForm() {
               />
             </svg>
           )}
-          Sign in with Google
+          Sign in with Google {activeTab === 'admin' ? '(Admin)' : ''}
         </Button>
 
         <div className="text-center text-xs text-muted-foreground mt-4">

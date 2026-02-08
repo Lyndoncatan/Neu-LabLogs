@@ -42,26 +42,33 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
   const [equipment, setEquipment] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  if (!teacher) {
-    return (
-      <Card className="border-border border-dashed opacity-50">
-        <CardHeader>
-          <CardTitle>Attendance Log</CardTitle>
-          <CardDescription>Scan your Teacher ID to begin</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">Teacher details will appear here after scanning</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Teacher details state (moved up to avoid hook ordering issues)
+  const [teacherName, setTeacherName] = useState('');
+  const [teacherId, setTeacherId] = useState('');
+  const [teacherDept, setTeacherDept] = useState('');
+
+  // Update local state when prop changes
+  React.useEffect(() => {
+    if (teacher) {
+      setTeacherName(teacher.name);
+      setTeacherId(teacher.id);
+      setTeacherDept(teacher.department);
+    } else {
+      // Reset if no teacher (optional, but good for cleanup)
+      setTeacherName('');
+      setTeacherId('');
+      setTeacherDept('');
+    }
+  }, [teacher]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!teacherId || !teacherName) return;
+
     const entry: UsageEntry = {
-      teacherId: teacher.id,
-      teacherName: teacher.name,
+      teacherId: teacherId,
+      teacherName: teacherName,
       buildingNumber: buildingNumber,
       roomNumber: roomNumber,
       startTime: new Date(), // Always use current time on submit
@@ -82,14 +89,25 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
     }, 2000);
   };
 
+  if (!teacher && !submitted) {
+    return (
+      <Card className="border-border border-dashed opacity-50">
+        <CardHeader>
+          <CardTitle>Attendance Log</CardTitle>
+          <CardDescription>Scan your Teacher ID to begin</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-sm">Teacher details will appear here after scanning</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-border">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Attendance Log</span>
-          <span className="text-lg font-normal text-primary">{teacher.name}</span>
-        </CardTitle>
-        <CardDescription>{teacher.department} - {teacher.id}</CardDescription>
+        <CardTitle>Attendance Log</CardTitle>
+        <CardDescription>Confirm details and log usage</CardDescription>
       </CardHeader>
       <CardContent>
         {submitted ? (
@@ -99,6 +117,40 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Teacher Details (Editable for OCR correction) */}
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg border border-dashed">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="t-name">Teacher Name</Label>
+                  <Input
+                    id="t-name"
+                    value={teacherName}
+                    onChange={(e) => setTeacherName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="t-id">Teacher ID</Label>
+                  <Input
+                    id="t-id"
+                    value={teacherId}
+                    onChange={(e) => setTeacherId(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="t-dept">Department</Label>
+                <Input
+                  id="t-dept"
+                  value={teacherDept}
+                  onChange={(e) => setTeacherDept(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="building">Building</Label>
