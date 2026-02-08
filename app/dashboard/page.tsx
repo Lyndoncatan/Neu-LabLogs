@@ -211,8 +211,26 @@ export default function DashboardPage() {
   };
 
   const handleSubmit = (entry: UsageEntry) => {
-    setEntries([...entries, { ...entry, startTime: new Date(entry.startTime) }]);
-    setScannedTeacher(null); // Reset scanner loop
+    const activeIndex = entries.findIndex(e =>
+      e.teacherId === entry.teacherId &&
+      e.buildingNumber === entry.buildingNumber &&
+      e.roomNumber === entry.roomNumber &&
+      !e.endTime
+    );
+
+    if (activeIndex >= 0) {
+      // Check Out
+      const updatedEntries = [...entries];
+      updatedEntries[activeIndex] = {
+        ...updatedEntries[activeIndex],
+        endTime: new Date()
+      };
+      setEntries(updatedEntries);
+    } else {
+      // Check In
+      setEntries([...entries, { ...entry, startTime: new Date() }]);
+    }
+    setScannedTeacher(null);
   };
 
   const recentEntries = entries.slice(-3).reverse();

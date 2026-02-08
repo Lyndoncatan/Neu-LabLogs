@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { TeacherData } from './qr-scanner';
 
 export interface UsageEntry {
@@ -33,7 +40,6 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
   const [numStudents, setNumStudents] = useState('1');
   const [purpose, setPurpose] = useState('');
   const [equipment, setEquipment] = useState('');
-  const [startTime, setStartTime] = useState(new Date().toISOString().slice(0, 16));
   const [submitted, setSubmitted] = useState(false);
 
   if (!teacher) {
@@ -58,7 +64,7 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
       teacherName: teacher.name,
       buildingNumber: buildingNumber,
       roomNumber: roomNumber,
-      startTime: new Date(startTime),
+      startTime: new Date(), // Always use current time on submit
       numStudents: parseInt(numStudents) || 1,
       purpose: purpose || 'General use',
       equipment: equipment.split(',').map((e) => e.trim()).filter(Boolean),
@@ -67,14 +73,11 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
     onSubmit(entry);
     setSubmitted(true);
     setTimeout(() => {
-      // Reset form but keep teacher? Or reset teacher too?
-      // Usually reset fields for next entry
       setBuildingNumber('');
       setRoomNumber('');
       setNumStudents('1');
       setPurpose('');
       setEquipment('');
-      setStartTime(new Date().toISOString().slice(0, 16));
       setSubmitted(false);
     }, 2000);
   };
@@ -96,16 +99,20 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="building">Building Number</Label>
-                <Input
-                  id="building"
-                  placeholder="e.g., A, B, Science"
-                  value={buildingNumber}
-                  onChange={(e) => setBuildingNumber(e.target.value)}
-                  required
-                />
+                <Label htmlFor="building">Building</Label>
+                <Select value={buildingNumber} onValueChange={setBuildingNumber} required>
+                  <SelectTrigger id="building">
+                    <SelectValue placeholder="Select Building" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="IS">IS Building</SelectItem>
+                    <SelectItem value="M">M Building</SelectItem>
+                    <SelectItem value="PSB">PSB Building</SelectItem>
+                    <SelectItem value="SOM">SOM Building</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="room">Room Number</Label>
@@ -119,18 +126,7 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="start-time">Start Time</Label>
-                <Input
-                  id="start-time"
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  required
-                />
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="students">Number of Students</Label>
                 <Input
@@ -171,6 +167,6 @@ export function RoomUsageForm({ teacher, onSubmit }: RoomUsageFormProps) {
           </form>
         )}
       </CardContent>
-    </Card>
+    </Card >
   );
 }
