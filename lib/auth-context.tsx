@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, hasValidSupabase } from '@/lib/supabase';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface User {
@@ -15,9 +15,11 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   loginWithGoogle: (preferredRole?: 'admin' | 'professor') => Promise<void>;
+  loginLocal: (name: string, email: string, role: 'admin' | 'professor') => void;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   error: string | null;
+  isLocalMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,28 +28,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isLocalMode = !hasValidSupabase;
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      validateSession(session?.user ?? null);
-    });
+    if (hasValidSupabase) {
+      // Use Supabase auth
+      supabase.auth.getSession().then(({ data: { session } }: any) => {
+        validateSession(session?.user ?? null);
+      });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      validateSession(session?.user ?? null);
-    });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+        validateSession(session?.user ?? null);
+      });
 
-    return () => subscription.unsubscribe();
+      return () => subscription.unsubscribe();
+    } else {
+      // Local mode: check localStorage for saved session
+      const savedUser = localStorage.getItem('localAuthUser');
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch {
+          localStorage.removeItem('localAuthUser');
+        }
+      }
+      setLoading(false);
+    }
   }, []);
 
   const validateSession = async (currentUser: SupabaseUser | null) => {
     if (currentUser) {
       if (currentUser.email?.endsWith('@neu.edu.ph')) {
-        // Map Supabase user to App User
-        // Defaulting to 'professor' role unless email starts with 'admin'
-        // This is a simple heuristic for the demo.
-        // Check for preferred role from login (for demo purposes)
         const preferredRole = localStorage.getItem('preferredRole');
         let role: 'professor' | 'admin' = 'professor';
 
@@ -56,9 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           role = (currentUser.email.startsWith('admin') || currentUser.email === 'example@neu.edu.ph') ? 'admin' : 'professor';
         }
-
-        // Clear preferred role after use so it doesn't persist forever if they switch back
-        // localStorage.removeItem('preferredRole'); // Optional: keep it for session persistence
 
         setUser({
           id: currentUser.id,
@@ -80,6 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async (preferredRole?: 'admin' | 'professor') => {
     setError(null);
+
+    if (!hasValidSupabase) {
+      setError('Supabase is not configured. Please use Local Login instead, or configure valid Supabase credentials in .env.local');
+      return;
+    }
+
     if (preferredRole) {
       localStorage.setItem('preferredRole', preferredRole);
     }
@@ -100,13 +114,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginLocal = (name: string, email: string, role: 'admin' | 'professor') => {
+    setError(null);
+    const localUser: User = {
+      id: `local-${Date.now()}`,
+      email: email || `${name.toLowerCase().replace(/\s+/g, '.')}@neu.edu.ph`,
+      role,
+      name,
+    };
+    setUser(localUser);
+    localStorage.setItem('localAuthUser', JSON.stringify(localUser));
+  };
+
   const logout = async () => {
-    await supabase.auth.signOut();
+    if (hasValidSupabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
+    localStorage.removeItem('localAuthUser');
+    localStorage.removeItem('preferredRole');
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, isAuthenticated: !!user, error }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginLocal, logout, isAuthenticated: !!user, error, isLocalMode }}>
       {children}
     </AuthContext.Provider>
   );
